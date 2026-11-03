@@ -333,4 +333,3 @@ ISC — see [LICENSE](LICENSE).
 ## Related
 
 - [MCP Specification](https://modelcontextprotocol.io/)
-- [prompt-system/10-doc-style.md](../perplexity-prompts/prompt-system/10-doc-style.md) — Documentation conventions used here
