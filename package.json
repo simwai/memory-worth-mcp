@@ -31,8 +31,16 @@
     "trust-scoring",
     "project-scoped"
   ],
-  "author": "",
-  "license": "MIT",
+  "author": "Simon Wai <simon@simonwai.com>",
+  "license": "ISC",
+  "homepage": "https://github.com/simwai/memory-worth-mcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/simwai/memory-worth-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/simwai/memory-worth-mcp/issues"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
     "better-sqlite3": "^9.4.0",
