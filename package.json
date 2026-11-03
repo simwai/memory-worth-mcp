@@ -5,7 +5,7 @@
   "type": "module",
   "main": "dist/server.js",
   "bin": {
-    "memory-worth-mcp": "dist/server.js"
+    "memory-worth-mcp": "dist/mcp-server.js"
   },
   "scripts": {
     "build": "tsc",
