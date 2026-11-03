@@ -1,8 +1,7 @@
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import * as z from "zod";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
+import { MemoryListToolsOutputSchema } from "../output-schemas.js";
 
-const ListToolsSchema = z.object({});
 const TOOLS = [
   { name: "memory_search", description: "Search memories by query, scope, trust level, and tags" },
   { name: "memory_get", description: "Retrieve a single memory by ID" },
@@ -17,20 +16,20 @@ const TOOLS = [
   { name: "memory_merge", description: "Merge multiple memories into a new one, superseding the originals" },
   { name: "memory_set_status", description: "Change a memory's status (active/archived/superseded)" },
   { name: "memory_list_tools", description: "List all available memory tools" },
+  { name: "health_check", description: "Check server and database connectivity" },
 ];
 
-export function registerMemoryListTools(server: Server): void {
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    if (request.params.name !== "memory_list_tools") {
-      return { content: [{ type: "text", text: `Unknown tool: ${request.params.name}` }], isError: true };
-    }
-
-    const rawArgs = request.params.arguments as Record<string, unknown> | undefined;
-    const parsed = ListToolsSchema.safeParse(rawArgs ?? {});
-    if (!parsed.success) {
-      return { content: [{ type: "text", text: `Invalid arguments: ${parsed.error.message}` }], isError: true };
-    }
-
-    return { content: [{ type: "text", text: JSON.stringify(TOOLS, null, 2) }], isError: false };
+export function registerMemoryListTools(server: McpServer): void {
+  server.registerTool("memory_list_tools", {
+    title: "List Tools",
+    description: "List all available memory tools",
+    inputSchema: {},
+    outputSchema: MemoryListToolsOutputSchema,
+  }, async () => {
+    const result = { tools: TOOLS };
+    return {
+      structuredContent: result,
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
   });
 }

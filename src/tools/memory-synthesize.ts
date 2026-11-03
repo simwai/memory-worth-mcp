@@ -1,48 +1,43 @@
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import Database from "better-sqlite3";
-import type { Database as DatabaseType } from "better-sqlite3";
-import * as z from "zod";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
+import { MemorySynthesizeOutputSchema } from "../output-schemas.js";
+import { getDatabase } from "../db/registry.js";
 
-const SynthesizeSchema = z.object({
-  memoryIds: z.array(z.string()).min(1),
-  project: z.string().min(1),
-  question: z.string().min(1),
-});
-
-type SynthesizeArgs = z.infer<typeof SynthesizeSchema>;
-
-export function registerMemorySynthesize(server: Server, db: DatabaseType): void {
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    if (request.params.name !== "memory_synthesize") {
-      return { content: [{ type: "text", text: `Unknown tool: ${request.params.name}` }], isError: true };
-    }
-
-    const rawArgs = request.params.arguments as Record<string, unknown> | undefined;
-    const parsed = SynthesizeSchema.safeParse(rawArgs ?? {});
-    if (!parsed.success) {
-      return { content: [{ type: "text", text: `Invalid arguments: ${parsed.error.message}` }], isError: true };
-    }
-    const args = parsed.data as SynthesizeArgs;
-
+export function registerMemorySynthesize(server: McpServer): void {
+  server.registerTool("memory_synthesize", {
+    title: "Synthesize Memories",
+    description: "Combine multiple memories into a synthesized answer for a question",
+    inputSchema: { memoryIds: z.array(z.string()).min(1), project: z.string().min(1), question: z.string().min(1) },
+    outputSchema: MemorySynthesizeOutputSchema,
+  }, async (args) => {
+    const db = getDatabase();
     const placeholders = args.memoryIds.map(() => "?").join(",");
     const rows = db.prepare(`SELECT * FROM memories WHERE id IN (${placeholders})`).all(...args.memoryIds) as any[];
 
     if (rows.length === 0) {
-      return { content: [{ type: "text", text: "No memories found for synthesis" }], isError: true };
+      return { isError: true, content: [{ type: "text", text: "No memories found for synthesis" }] };
     }
 
-    const synthesis = {
+    const sources = rows.map(r => ({
+      id: r.id,
+      content: r.content,
+      appliesWhen: r.applies_when,
+      trustLabel: r.trust_label,
+      evidenceRefs: JSON.parse(r.evidence_refs),
+    }));
+    const combinedInsights = rows.filter(r => r.trust_label === "high").map(r => r.content).join("\n---\n");
+    const conflictingViews = rows.filter(r => r.trust_label === "low").map(r => r.content).join("\n---\n");
+
+    const result = {
       question: args.question,
-      sources: rows.map(r => ({
-        id: r.id, content: r.content, appliesWhen: r.applies_when,
-        trustLabel: r.trust_label, evidenceRefs: JSON.parse(r.evidence_refs),
-      })),
-      combinedInsights: rows.filter(r => r.trust_label === "high").map(r => r.content).join("\n---\n"),
-      conflictingViews: rows.filter(r => r.trust_label === "low").map(r => r.content).join("\n---\n"),
+      sources,
+      combinedInsights,
+      conflictingViews,
       generatedAt: Date.now(),
     };
-
-    return { content: [{ type: "text", text: JSON.stringify(synthesis, null, 2) }], isError: false };
+    return {
+      structuredContent: result,
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
   });
 }

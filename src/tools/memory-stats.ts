@@ -1,24 +1,39 @@
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import Database from "better-sqlite3";
-import type { Database as DatabaseType } from "better-sqlite3";
-import * as z from "zod";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
+import { MemoryStatsOutputSchema } from "../output-schemas.js";
+import { getDatabase } from "../db/registry.js";
 
-const StatsSchema = z.object({ project: z.string().optional() });
-type StatsArgs = z.infer<typeof StatsSchema>;
+interface ProjectStatsRow {
+  total: number;
+  active: number;
+  archived: number;
+  superseded: number;
+  high_trust: number;
+  low_trust: number;
+  unproven: number;
+  avg_trust: number | null;
+}
 
-export function registerMemoryStats(server: Server, db: DatabaseType): void {
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    if (request.params.name !== "memory_stats") {
-      return { content: [{ type: "text", text: `Unknown tool: ${request.params.name}` }], isError: true };
-    }
+interface GlobalStatsRow {
+  total: number;
+  active: number;
+  high_trust: number;
+  avg_trust: number | null;
+}
 
-    const rawArgs = request.params.arguments as Record<string, unknown> | undefined;
-    const parsed = StatsSchema.safeParse(rawArgs ?? {});
-    if (!parsed.success) {
-      return { content: [{ type: "text", text: `Invalid arguments: ${parsed.error.message}` }], isError: true };
-    }
-    const args = parsed.data as StatsArgs;
+interface TagCountRow {
+  tag: string;
+  count: number;
+}
+
+export function registerMemoryStats(server: McpServer): void {
+  server.registerTool("memory_stats", {
+    title: "Memory Stats",
+    description: "Project and global memory statistics with trust distribution and top tags",
+    inputSchema: { project: z.string().optional() },
+    outputSchema: MemoryStatsOutputSchema,
+  }, async (args) => {
+    const db = getDatabase();
     const project = args.project || process.env.MEMORY_WORTH_PROJECT || "default";
 
     const projectStats = db.prepare(`
@@ -29,19 +44,42 @@ export function registerMemoryStats(server: Server, db: DatabaseType): void {
         SUM(CASE WHEN trust_label='low' THEN 1 ELSE 0 END) as low_trust,
         SUM(CASE WHEN trust_label='unproven' THEN 1 ELSE 0 END) as unproven,
         AVG(trust_score) as avg_trust FROM memories WHERE project = ?
-    `).get(project);
+    `).get(project) as ProjectStatsRow;
 
     const globalStats = db.prepare(`
       SELECT COUNT(*) as total, SUM(CASE WHEN status='active' THEN 1 ELSE 0 END) as active,
         SUM(CASE WHEN trust_label='high' THEN 1 ELSE 0 END) as high_trust, AVG(trust_score) as avg_trust
       FROM memories WHERE scope = 'global'
-    `).get();
+    `).get() as GlobalStatsRow;
 
     const tagCounts = db.prepare(`
       SELECT json_each.value as tag, COUNT(*) as count FROM memories, json_each(tags)
       WHERE project = ? AND status = 'active' GROUP BY json_each.value ORDER BY count DESC LIMIT 20
-    `).all(project);
+    `).all(project) as TagCountRow[];
 
-    return { content: [{ type: "text", text: JSON.stringify({ project, projectStats, globalStats, topTags: tagCounts }, null, 2) }], isError: false };
+    const result = {
+      project,
+      projectStats: {
+        total: projectStats.total,
+        active: projectStats.active,
+        archived: projectStats.archived,
+        superseded: projectStats.superseded,
+        highTrust: projectStats.high_trust,
+        lowTrust: projectStats.low_trust,
+        unproven: projectStats.unproven,
+        avgTrust: projectStats.avg_trust,
+      },
+      globalStats: {
+        total: globalStats.total,
+        active: globalStats.active,
+        highTrust: globalStats.high_trust,
+        avgTrust: globalStats.avg_trust,
+      },
+      topTags: tagCounts.map(t => ({ tag: t.tag, count: t.count })),
+    };
+    return {
+      structuredContent: result,
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
   });
 }

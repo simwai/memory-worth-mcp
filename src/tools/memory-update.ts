@@ -1,37 +1,28 @@
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import Database from "better-sqlite3";
-import type { Database as DatabaseType } from "better-sqlite3";
-import * as z from "zod";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
+import { MemoryUpdateOutputSchema } from "../output-schemas.js";
+import { getDatabase } from "../db/registry.js";
+import { rowToMemory, MemoryRowLike } from "../utils/mappers.js";
 
-const UpdateSchema = z.object({
-  id: z.string().min(1),
-  content: z.string().optional(),
-  appliesWhen: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-  trustScore: z.number().min(0).max(1).optional(),
-  status: z.enum(["active", "archived", "superseded"]).optional(),
-  supersededBy: z.string().optional(),
-});
-
-type UpdateArgs = z.infer<typeof UpdateSchema>;
-
-export function registerMemoryUpdate(server: Server, db: DatabaseType): void {
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    if (request.params.name !== "memory_update") {
-      return { content: [{ type: "text", text: `Unknown tool: ${request.params.name}` }], isError: true };
-    }
-
-    const rawArgs = request.params.arguments as Record<string, unknown> | undefined;
-    const parsed = UpdateSchema.safeParse(rawArgs ?? {});
-    if (!parsed.success) {
-      return { content: [{ type: "text", text: `Invalid arguments: ${parsed.error.message}` }], isError: true };
-    }
-    const args = parsed.data as UpdateArgs;
-
-    const existing = db.prepare("SELECT * FROM memories WHERE id = ?").get(args.id);
+export function registerMemoryUpdate(server: McpServer): void {
+  server.registerTool("memory_update", {
+    title: "Update Memory",
+    description: "Update an existing memory's content, trust score, tags, or status",
+    inputSchema: {
+      id: z.string().min(1),
+      content: z.string().optional(),
+      appliesWhen: z.string().optional(),
+      tags: z.array(z.string()).optional(),
+      trustScore: z.number().min(0).max(1).optional(),
+      status: z.enum(["active", "archived", "superseded"]).optional(),
+      supersededBy: z.string().optional(),
+    },
+    outputSchema: MemoryUpdateOutputSchema,
+  }, async (args) => {
+    const db = getDatabase();
+    const existing = db.prepare("SELECT * FROM memories WHERE id = ?").get(args.id) as MemoryRowLike | undefined;
     if (!existing) {
-      return { content: [{ type: "text", text: `Memory not found: ${args.id}` }], isError: true };
+      return { isError: true, content: [{ type: "text", text: `Memory not found: ${args.id}` }] };
     }
 
     const updates: string[] = [];
@@ -52,13 +43,17 @@ export function registerMemoryUpdate(server: Server, db: DatabaseType): void {
     if (args.supersededBy !== undefined) { updates.push("superseded_by = ?"); params.push(args.supersededBy); }
 
     if (updates.length === 0) {
-      return { content: [{ type: "text", text: "No updates provided" }], isError: true };
+      return { isError: true, content: [{ type: "text", text: "No updates provided" }] };
     }
 
     updates.push("updated_at = ?"); params.push(Date.now()); params.push(args.id);
     db.prepare(`UPDATE memories SET ${updates.join(", ")} WHERE id = ?`).run(...params);
 
-    const updated = db.prepare("SELECT * FROM memories WHERE id = ?").get(args.id);
-    return { content: [{ type: "text", text: JSON.stringify(updated, null, 2) }], isError: false };
+    const updated = db.prepare("SELECT * FROM memories WHERE id = ?").get(args.id) as MemoryRowLike;
+    const memory = rowToMemory(updated);
+    return {
+      structuredContent: { memory },
+      content: [{ type: "text", text: JSON.stringify({ memory }, null, 2) }],
+    };
   });
 }

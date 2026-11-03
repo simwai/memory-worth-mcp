@@ -1,27 +1,18 @@
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import Database from "better-sqlite3";
-import type { Database as DatabaseType } from "better-sqlite3";
-import * as z from "zod";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
 import { getPopulationQuantiles } from "../trust/index.js";
+import { MemoryTuneOutputSchema } from "../output-schemas.js";
+import { getDatabase } from "../db/registry.js";
 
-const TuneSchema = z.object({ project: z.string().optional(), highThreshold: z.number().min(0).max(1).optional(), lowThreshold: z.number().min(0).max(1).optional() });
-type TuneArgs = z.infer<typeof TuneSchema>;
-
-export function registerMemoryTune(server: Server, db: DatabaseType): void {
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    if (request.params.name !== "memory_tune") {
-      return { content: [{ type: "text", text: `Unknown tool: ${request.params.name}` }], isError: true };
-    }
-
-    const rawArgs = request.params.arguments as Record<string, unknown> | undefined;
-    const parsed = TuneSchema.safeParse(rawArgs ?? {});
-    if (!parsed.success) {
-      return { content: [{ type: "text", text: `Invalid arguments: ${parsed.error.message}` }], isError: true };
-    }
-    const args = parsed.data as TuneArgs;
+export function registerMemoryTune(server: McpServer): void {
+  server.registerTool("memory_tune", {
+    title: "Tune Memory",
+    description: "Adjust trust score thresholds and relabel memories",
+    inputSchema: { project: z.string().optional(), highThreshold: z.number().min(0).max(1).optional(), lowThreshold: z.number().min(0).max(1).optional() },
+    outputSchema: MemoryTuneOutputSchema,
+  }, async (args) => {
+    const db = getDatabase();
     const project = args.project || process.env.MEMORY_WORTH_PROJECT || "default";
-
     const quantiles = getPopulationQuantiles(db);
     const currentHigh = args.highThreshold ?? quantiles.high;
     const currentLow = args.lowThreshold ?? quantiles.low;
@@ -36,6 +27,15 @@ export function registerMemoryTune(server: Server, db: DatabaseType): void {
       db.prepare("UPDATE memories SET trust_label = ?, updated_at = ? WHERE id = ?").run(label, Date.now(), m.id);
     }
 
-    return { content: [{ type: "text", text: JSON.stringify({ project, previousQuantiles: quantiles, newThresholds: { high: currentHigh, low: currentLow }, relabeledCount: memories.length }, null, 2) }], isError: false };
+    const result = {
+      project,
+      previousQuantiles: quantiles,
+      newThresholds: { high: currentHigh, low: currentLow },
+      relabeledCount: memories.length,
+    };
+    return {
+      structuredContent: result,
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
   });
 }

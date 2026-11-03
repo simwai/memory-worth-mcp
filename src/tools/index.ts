@@ -1,6 +1,4 @@
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import Database from "better-sqlite3";
-import type { Database as DatabaseType } from "better-sqlite3";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerMemorySearch } from "./memory-search.js";
 import { registerMemoryGet } from "./memory-get.js";
 import { registerMemoryWrite } from "./memory-write.js";
@@ -14,19 +12,21 @@ import { registerMemoryInvalidate } from "./memory-invalidate.js";
 import { registerMemoryMerge } from "./memory-merge.js";
 import { registerMemorySetStatus } from "./memory-set-status.js";
 import { registerMemoryListTools } from "./memory-list-tools.js";
+import { registerHealthCheck } from "./health-check.js";
 
-export function registerAllTools(server: Server, db: DatabaseType): void {
-  registerMemorySearch(server, db);
-  registerMemoryGet(server, db);
-  registerMemoryWrite(server, db);
-  registerMemoryUpdate(server, db);
-  registerMemoryDelete(server, db);
-  registerMemorySynthesize(server, db);
-  registerMemoryWakeup(server, db);
-  registerMemoryStats(server, db);
-  registerMemoryTune(server, db);
-  registerMemoryInvalidate(server, db);
-  registerMemoryMerge(server, db);
-  registerMemorySetStatus(server, db);
+export function registerAllTools(server: McpServer): void {
+  registerMemorySearch(server);
+  registerMemoryGet(server);
+  registerMemoryWrite(server);
+  registerMemoryUpdate(server);
+  registerMemoryDelete(server);
+  registerMemorySynthesize(server);
+  registerMemoryWakeup(server);
+  registerMemoryStats(server);
+  registerMemoryTune(server);
+  registerMemoryInvalidate(server);
+  registerMemoryMerge(server);
+  registerMemorySetStatus(server);
   registerMemoryListTools(server);
+  registerHealthCheck(server);
 }
