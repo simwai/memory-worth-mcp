@@ -4,6 +4,7 @@ import { determineWriteScope } from "../routing/index.js";
 import { calculateTrustScore } from "../trust/index.js";
 import { MemoryWriteOutputSchema } from "../output-schemas.js";
 import { getDatabase } from "../db/registry.js";
+import { logger } from "../utils/logger.js";
 
 export function registerMemoryWrite(server: McpServer): void {
   server.registerTool("memory_write", {
@@ -34,6 +35,7 @@ export function registerMemoryWrite(server: McpServer): void {
     );
 
     const result = { id, scope, trustScore: score, trustLabel: label };
+    logger.info("memory_write", { project: args.project, id, scope, trustLabel: label });
     return {
       structuredContent: result,
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],

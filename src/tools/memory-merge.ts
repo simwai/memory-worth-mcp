@@ -4,6 +4,7 @@ import { determineWriteScope } from "../routing/index.js";
 import { calculateTrustScore } from "../trust/index.js";
 import { MemoryMergeOutputSchema } from "../output-schemas.js";
 import { getDatabase } from "../db/registry.js";
+import { logger } from "../utils/logger.js";
 
 export function registerMemoryMerge(server: McpServer): void {
   server.registerTool("memory_merge", {
@@ -11,13 +12,16 @@ export function registerMemoryMerge(server: McpServer): void {
     description: "Merge multiple memories into a new one, superseding the originals",
     inputSchema: { memoryIds: z.array(z.string()).min(2), newContent: z.string().min(1), newAppliesWhen: z.string().min(1), project: z.string().min(1) },
     outputSchema: MemoryMergeOutputSchema,
-  }, async (args) => {
+  }, async (args, extra) => {
+    const signal = extra.signal as AbortSignal | undefined;
     const db = getDatabase();
     const placeholders = args.memoryIds.map(() => "?").join(",");
     const memories = db.prepare(`SELECT * FROM memories WHERE id IN (${placeholders})`).all(...args.memoryIds) as any[];
     if (memories.length !== args.memoryIds.length) {
+      logger.warn("memory_merge", { memoryIds: args.memoryIds, result: "not_found" });
       return { isError: true, content: [{ type: "text", text: "One or more memories not found" }] };
     }
+    logger.debug("memory_merge", { project: args.project, memoryIds: args.memoryIds });
 
     const scope = determineWriteScope(args.newContent, args.newAppliesWhen);
     const id = crypto.randomUUID();
@@ -27,11 +31,21 @@ export function registerMemoryMerge(server: McpServer): void {
 
     db.prepare(`INSERT INTO memories (id, project, scope, content, applies_when, tags, trust_score, trust_label, evidence_refs, created_at, updated_at, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(id, args.project, scope, args.newContent, args.newAppliesWhen, "[]", score, label, JSON.stringify(allRefs), now, now, "active");
 
-    for (const oldId of args.memoryIds) {
+    for (let i = 0; i < args.memoryIds.length; i++) {
+      if (signal?.aborted) {
+        logger.warn("memory_merge", { project: args.project, cancelled: true, progress: i, total: args.memoryIds.length });
+        throw new Error("Operation cancelled");
+      }
+      const oldId = args.memoryIds[i];
       db.prepare("UPDATE memories SET status = 'superseded', superseded_by = ?, updated_at = ? WHERE id = ?").run(id, now, oldId);
+      const extraWithProgress = extra as { sendProgress?: (update: { progress: number; total: number; message: string }) => Promise<void> };
+      if (extraWithProgress.sendProgress) {
+        await extraWithProgress.sendProgress({ progress: i + 1, total: args.memoryIds.length, message: `Superseded ${oldId}` });
+      }
     }
 
     const result = { mergedId: id, superseded: args.memoryIds, scope, trustScore: score, trustLabel: label };
+    logger.info("memory_merge", { project: args.project, mergedId: id, supersededCount: args.memoryIds.length });
     return {
       structuredContent: result,
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],

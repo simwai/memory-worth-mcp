@@ -4,6 +4,7 @@ import { resolveScope, buildOrderByClause } from "../routing/index.js";
 import { MemorySearchOutputSchema } from "../output-schemas.js";
 import { getDatabase } from "../db/registry.js";
 import { rowToMemory, MemoryRowLike } from "../utils/mappers.js";
+import { logger } from "../utils/logger.js";
 
 export function registerMemorySearch(server: McpServer): void {
   server.registerTool("memory_search", {
@@ -21,6 +22,7 @@ export function registerMemorySearch(server: McpServer): void {
   }, async (args) => {
     const db = getDatabase();
     const project = args.project || process.env.MEMORY_WORTH_PROJECT || "default";
+    logger.debug("memory_search", { project, query: args.query, scope: args.scope, minTrust: args.minTrust });
     const { whereClause, params } = resolveScope(args.scope, project);
     let fullWhere = whereClause;
 
@@ -47,6 +49,7 @@ export function registerMemorySearch(server: McpServer): void {
 
     const rows = db.prepare(sql).all(...params) as MemoryRowLike[];
     const memories = rows.map(rowToMemory);
+    logger.info("memory_search", { project, query: args.query, resultCount: memories.length });
 
     return {
       structuredContent: { memories, count: memories.length },

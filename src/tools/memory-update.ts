@@ -3,6 +3,7 @@ import { z } from "zod";
 import { MemoryUpdateOutputSchema } from "../output-schemas.js";
 import { getDatabase } from "../db/registry.js";
 import { rowToMemory, MemoryRowLike } from "../utils/mappers.js";
+import { logger } from "../utils/logger.js";
 
 export function registerMemoryUpdate(server: McpServer): void {
   server.registerTool("memory_update", {
@@ -22,6 +23,7 @@ export function registerMemoryUpdate(server: McpServer): void {
     const db = getDatabase();
     const existing = db.prepare("SELECT * FROM memories WHERE id = ?").get(args.id) as MemoryRowLike | undefined;
     if (!existing) {
+      logger.warn("memory_update", { id: args.id, result: "not_found" });
       return { isError: true, content: [{ type: "text", text: `Memory not found: ${args.id}` }] };
     }
 
@@ -51,6 +53,7 @@ export function registerMemoryUpdate(server: McpServer): void {
 
     const updated = db.prepare("SELECT * FROM memories WHERE id = ?").get(args.id) as MemoryRowLike;
     const memory = rowToMemory(updated);
+    logger.info("memory_update", { id: args.id, fields: Object.keys(args).filter(k => k !== "id") });
     return {
       structuredContent: { memory },
       content: [{ type: "text", text: JSON.stringify({ memory }, null, 2) }],
