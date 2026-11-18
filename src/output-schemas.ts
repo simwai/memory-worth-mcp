@@ -13,8 +13,8 @@ export const MemorySchema = z.object({
   createdAt: z.number(),
   updatedAt: z.number(),
   status: z.enum(["active", "archived", "superseded"]),
-  supersededBy: z.string().nullable().optional(),
-  sessionId: z.string().nullable().optional(),
+  supersededBy: z.string().nullable(),
+  sessionId: z.string().nullable(),
 });
 
 export const MemorySearchOutputSchema = z.object({
@@ -44,13 +44,15 @@ export const MemoryDeleteOutputSchema = z.object({
 
 export const MemorySynthesizeOutputSchema = z.object({
   question: z.string(),
-  sources: z.array(z.object({
-    id: z.string(),
-    content: z.string(),
-    appliesWhen: z.string(),
-    trustLabel: z.enum(["high", "low", "unproven"]),
-    evidenceRefs: z.array(z.string()),
-  })),
+  sources: z.array(
+    z.object({
+      id: z.string(),
+      content: z.string(),
+      appliesWhen: z.string(),
+      trustLabel: z.enum(["high", "low", "unproven"]),
+      evidenceRefs: z.array(z.string()),
+    }),
+  ),
   combinedInsights: z.string(),
   conflictingViews: z.string(),
   generatedAt: z.number(),
@@ -60,22 +62,28 @@ export const MemoryWakeupOutputSchema = z.object({
   sessionId: z.string(),
   project: z.string(),
   timestamp: z.number(),
-  highTrustMemories: z.array(z.object({
-    id: z.string(),
-    summary: z.string(),
-    appliesWhen: z.string(),
-    trustScore: z.number(),
-  })),
-  recentActivity: z.array(z.object({
-    id: z.string(),
-    summary: z.string(),
-    updatedAt: z.number(),
-  })),
-  needsReview: z.array(z.object({
-    id: z.string(),
-    summary: z.string(),
-    appliesWhen: z.string(),
-  })),
+  highTrustMemories: z.array(
+    z.object({
+      id: z.string(),
+      summary: z.string(),
+      appliesWhen: z.string(),
+      trustScore: z.number(),
+    }),
+  ),
+  recentActivity: z.array(
+    z.object({
+      id: z.string(),
+      summary: z.string(),
+      updatedAt: z.number(),
+    }),
+  ),
+  needsReview: z.array(
+    z.object({
+      id: z.string(),
+      summary: z.string(),
+      appliesWhen: z.string(),
+    }),
+  ),
   protocolReminder: z.string(),
 });
 
@@ -97,10 +105,12 @@ export const MemoryStatsOutputSchema = z.object({
     highTrust: z.number(),
     avgTrust: z.number().nullable(),
   }),
-  topTags: z.array(z.object({
-    tag: z.string(),
-    count: z.number(),
-  })),
+  topTags: z.array(
+    z.object({
+      tag: z.string(),
+      count: z.number(),
+    }),
+  ),
 });
 
 export const MemoryTuneOutputSchema = z.object({
@@ -136,10 +146,12 @@ export const MemorySetStatusOutputSchema = z.object({
 });
 
 export const MemoryListToolsOutputSchema = z.object({
-  tools: z.array(z.object({
-    name: z.string(),
-    description: z.string(),
-  })),
+  tools: z.array(
+    z.object({
+      name: z.string(),
+      description: z.string(),
+    }),
+  ),
 });
 
 export const HealthCheckOutputSchema = z.object({

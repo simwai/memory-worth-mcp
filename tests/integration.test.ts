@@ -1,14 +1,14 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { mkdtempSync, rmSync } from "fs";
-import { tmpdir } from "os";
-import { join } from "path";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { Database as DatabaseType } from "better-sqlite3";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { initializeDatabase } from "../src/db/index.js";
 import { setDatabase } from "../src/db/registry.js";
 import { createServer } from "../src/server.js";
-import type { Database as DatabaseType } from "better-sqlite3";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 let client: Client;
 let server: McpServer;
@@ -40,7 +40,7 @@ describe("MCP integration (in-memory transport)", () => {
 
   it("registers the 4 resource templates", async () => {
     const { resourceTemplates } = await client.listResourceTemplates();
-    expect(resourceTemplates.map(t => t.uriTemplate).sort()).toEqual([
+    expect(resourceTemplates.map((t) => t.uriTemplate).sort()).toEqual([
       "memory://project/{project}/export",
       "memory://project/{project}/memories",
       "memory://project/{project}/memories/{id}",
@@ -50,7 +50,7 @@ describe("MCP integration (in-memory transport)", () => {
 
   it("registers the global fixed resource", async () => {
     const { resources } = await client.listResources();
-    expect(resources.map(r => r.uri)).toContain("memory://global/memories");
+    expect(resources.map((r) => r.uri)).toContain("memory://global/memories");
   });
 
   it("writes a memory and exposes it through templated resources", async () => {
@@ -64,7 +64,9 @@ describe("MCP integration (in-memory transport)", () => {
       },
     });
     expect((written as { structuredContent?: { id: string } }).structuredContent?.id).toBeTruthy();
-    expect((written as { structuredContent?: { trustLabel: string } }).structuredContent?.trustLabel).toBe("unproven");
+    expect(
+      (written as { structuredContent?: { trustLabel: string } }).structuredContent?.trustLabel,
+    ).toBe("unproven");
 
     // memory-list template: project appears with the memory
     const list = await client.readResource({ uri: "memory://project/it-proj/memories" });
@@ -94,7 +96,7 @@ describe("MCP integration (in-memory transport)", () => {
 
   it("rejects reading a missing memory through the template", async () => {
     await expect(
-      client.readResource({ uri: "memory://project/it-proj/memories/missing-id" })
+      client.readResource({ uri: "memory://project/it-proj/memories/missing-id" }),
     ).rejects.toThrow();
   });
 
@@ -103,20 +105,24 @@ describe("MCP integration (in-memory transport)", () => {
       name: "memory_search",
       arguments: { query: "timestep", scope: "project", project: "it-proj" },
     });
-    const structured = (result as { structuredContent?: { count: number; memories: unknown[] } }).structuredContent;
+    const structured = (result as { structuredContent?: { count: number; memories: unknown[] } })
+      .structuredContent;
     expect(structured?.count).toBe(1);
   });
 
   it("lists 4 prompts and renders memory-review", async () => {
     const { prompts } = await client.listPrompts();
-    expect(prompts.map(p => p.name).sort()).toEqual([
+    expect(prompts.map((p) => p.name).sort()).toEqual([
       "memory-cleanup",
       "memory-review",
       "memory-synthesis",
       "memory-tune-guidance",
     ]);
 
-    const rendered = await client.getPrompt({ name: "memory-review", arguments: { project: "it-proj" } });
+    const rendered = await client.getPrompt({
+      name: "memory-review",
+      arguments: { project: "it-proj" },
+    });
     expect(rendered.messages[0].role).toBe("user");
     expect((rendered.messages[0].content as { text: string }).text).toContain("it-proj");
   });

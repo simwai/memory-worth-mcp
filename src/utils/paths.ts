@@ -1,6 +1,6 @@
-import { homedir } from "os";
-import { join, dirname } from "path";
-import { mkdirSync } from "fs";
+import { mkdirSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
 
 export function resolveDbPath(): string {
   if (process.env.MEMORY_WORTH_DB) {

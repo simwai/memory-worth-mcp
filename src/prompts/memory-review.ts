@@ -1,48 +1,75 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { getDatabase } from "../db/registry.js";
+import { type MemoryRowLike, rowToMemory } from "../utils/mappers.js";
 
 export function registerMemoryReviewPrompt(server: McpServer): void {
-  server.registerPrompt("memory-review", {
-    title: "Memory Review Prompt",
-    description: "Generate a structured prompt for reviewing project memories",
-    argsSchema: {
-      project: z.string().min(1),
-      focus: z.enum(["bugs", "architecture", "performance", "all"]).optional(),
+  server.registerPrompt(
+    "memory-review",
+    {
+      title: "Memory Review Prompt",
+      description: "Generate a structured prompt for reviewing project memories",
+      argsSchema: {
+        project: z.string().min(1),
+        focus: z.enum(["bugs", "architecture", "performance", "all"]).optional(),
+      },
     },
-  }, async ({ project, focus = "all" }) => {
-    const db = getDatabase();
-    const memories = db.prepare(`
+    async ({ project, focus = "all" }) => {
+      const db = getDatabase();
+      const memoryRows = db
+        .prepare(`
       SELECT * FROM memories WHERE project = ? AND status = 'active'
       ORDER BY trust_score DESC, updated_at DESC
-    `).all(project) as any[];
+    `)
+        .all(project) as MemoryRowLike[];
+      const memories = memoryRows.map(rowToMemory);
 
-    const highTrust = memories.filter(m => m.trust_label === "high");
-    const unproven = memories.filter(m => m.trust_label === "unproven");
-    const lowTrust = memories.filter(m => m.trust_label === "low");
+      const highTrust = memories.filter((m) => m.trustLabel === "high");
+      const unproven = memories.filter((m) => m.trustLabel === "unproven");
+      const lowTrust = memories.filter((m) => m.trustLabel === "low");
 
-    let focusFilter = memories;
-    if (focus === "bugs") {
-      focusFilter = memories.filter(m => m.tags && JSON.parse(m.tags).includes("bug"));
-    } else if (focus === "architecture") {
-      focusFilter = memories.filter(m => m.tags && (JSON.parse(m.tags).includes("architecture") || JSON.parse(m.tags).includes("design")));
-    } else if (focus === "performance") {
-      focusFilter = memories.filter(m => m.tags && JSON.parse(m.tags).includes("performance"));
-    }
+      let focusFilter = memories;
+      if (focus === "bugs") {
+        focusFilter = memories.filter((m) => m.tags.includes("bug"));
+      } else if (focus === "architecture") {
+        focusFilter = memories.filter(
+          (m) => m.tags.includes("architecture") || m.tags.includes("design"),
+        );
+      } else if (focus === "performance") {
+        focusFilter = memories.filter((m) => m.tags.includes("performance"));
+      }
 
-    const prompt = `Review the following memories for project "${project}" (focus: ${focus}):
+      const prompt = `Review the following memories for project "${project}" (focus: ${focus}):
 
 ## High-Trust Memories (${highTrust.length})
-${highTrust.slice(0, 10).map(m => `- **${m.id}** (trust: ${m.trust_score.toFixed(2)}) ${m.content.slice(0, 200)}... [applies: ${m.applies_when}]`).join("\n")}
+${highTrust
+  .slice(0, 10)
+  .map(
+    (m) =>
+      `- **${m.id}** (trust: ${m.trustScore.toFixed(2)}) ${m.content.slice(0, 200)}... [applies: ${m.appliesWhen}]`,
+  )
+  .join("\n")}
 
 ## Unproven Memories Needing Review (${unproven.length})
-${unproven.slice(0, 10).map(m => `- **${m.id}** ${m.content.slice(0, 200)}... [applies: ${m.applies_when}]`).join("\n")}
+${unproven
+  .slice(0, 10)
+  .map((m) => `- **${m.id}** ${m.content.slice(0, 200)}... [applies: ${m.appliesWhen}]`)
+  .join("\n")}
 
 ## Low-Trust Memories (${lowTrust.length})
-${lowTrust.slice(0, 5).map(m => `- **${m.id}** (trust: ${m.trust_score.toFixed(2)}) ${m.content.slice(0, 200)}... [applies: ${m.applies_when}]`).join("\n")}
+${lowTrust
+  .slice(0, 5)
+  .map(
+    (m) =>
+      `- **${m.id}** (trust: ${m.trustScore.toFixed(2)}) ${m.content.slice(0, 200)}... [applies: ${m.appliesWhen}]`,
+  )
+  .join("\n")}
 
 ## Focus: ${focus} (${focusFilter.length} memories)
-${focusFilter.slice(0, 10).map(m => `- **${m.id}** [${m.trust_label}] ${m.content.slice(0, 200)}...`).join("\n")}
+${focusFilter
+  .slice(0, 10)
+  .map((m) => `- **${m.id}** [${m.trustLabel}] ${m.content.slice(0, 200)}...`)
+  .join("\n")}
 
 ---
 **Review Tasks:**
@@ -52,8 +79,9 @@ ${focusFilter.slice(0, 10).map(m => `- **${m.id}** [${m.trust_label}] ${m.conten
 4. Merge related memories
 5. Update tags for discoverability`;
 
-    return {
-      messages: [{ role: "user" as const, content: { type: "text" as const, text: prompt } }],
-    };
-  });
+      return {
+        messages: [{ role: "user" as const, content: { type: "text" as const, text: prompt } }],
+      };
+    },
+  );
 }

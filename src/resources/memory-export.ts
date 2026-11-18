@@ -1,6 +1,6 @@
-import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { type McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getDatabase } from "../db/registry.js";
-import { rowToMemory, MemoryRowLike } from "../utils/mappers.js";
+import { type MemoryRowLike, rowToMemory } from "../utils/mappers.js";
 
 export function registerMemoryExportResource(server: McpServer): void {
   server.registerResource(
@@ -15,15 +15,19 @@ export function registerMemoryExportResource(server: McpServer): void {
     },
     async (uri, variables) => {
       const rows = getDatabase()
-        .prepare("SELECT * FROM memories WHERE project = ? AND status = 'active' ORDER BY updated_at DESC")
+        .prepare(
+          "SELECT * FROM memories WHERE project = ? AND status = 'active' ORDER BY updated_at DESC LIMIT 1000",
+        )
         .all(variables.project) as MemoryRowLike[];
       return {
-        contents: [{
-          uri: uri.href,
-          mimeType: "application/json",
-          text: JSON.stringify(rows.map(rowToMemory), null, 2),
-        }],
+        contents: [
+          {
+            uri: uri.href,
+            mimeType: "application/json",
+            text: JSON.stringify(rows.map(rowToMemory), null, 2),
+          },
+        ],
       };
-    }
+    },
   );
 }

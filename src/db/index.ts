@@ -1,6 +1,7 @@
-import Database from "better-sqlite3";
 import type { Database as DatabaseType } from "better-sqlite3";
-import { resolveDbPath, ensureDbDirectory } from "../utils/paths.js";
+import Database from "better-sqlite3";
+import { ensureDbDirectory, resolveDbPath } from "../utils/paths.js";
+import { resetDatabase } from "./registry.js";
 
 const SCHEMA = `
 -- Memories table
@@ -54,9 +55,11 @@ export function initializeDatabase(dbPath?: string): DatabaseType {
   const db = new Database(path);
   db.exec(SCHEMA);
   db.pragma("journal_mode = WAL");
+  db.pragma("foreign_keys = ON");
   return db;
 }
 
 export function closeDatabase(db: DatabaseType): void {
   db.close();
+  resetDatabase();
 }

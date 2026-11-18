@@ -1,15 +1,15 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { initializeDatabase } from "./db/index.js";
+import { closeDatabase, initializeDatabase } from "./db/index.js";
 import { setDatabase } from "./db/registry.js";
-import { registerAllTools } from "./tools/index.js";
-import { registerAllResources } from "./resources/index.js";
 import { registerAllPrompts } from "./prompts/index.js";
+import { registerAllResources } from "./resources/index.js";
+import { registerAllTools } from "./tools/index.js";
 
 export function createServer(): McpServer {
   const server = new McpServer(
     { name: "memory-worth-mcp", version: "1.0.0" },
-    { capabilities: { tools: {}, resources: {}, prompts: {} } }
+    { capabilities: { tools: {}, resources: {}, prompts: {} } },
   );
 
   registerAllTools(server);
@@ -27,10 +27,21 @@ export async function main(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
-  console.error("memory-worth-mcp server running on stdio (tools: 14, resources: 5, prompts: 4)");
+  const toolCount = (server as unknown as { _toolMap?: Map<string, unknown> })._toolMap?.size ?? 14;
+  const resourceCount =
+    (server as unknown as { _resourceMap?: Map<string, unknown> })._resourceMap?.size ?? 5;
+  const promptCount =
+    (server as unknown as { _promptMap?: Map<string, unknown> })._promptMap?.size ?? 4;
+  console.error(
+    `memory-worth-mcp server running on stdio (tools: ${toolCount}, resources: ${resourceCount}, prompts: ${promptCount})`,
+  );
 
-  process.on("SIGINT", () => {
-    console.error("Shutting down...");
+  function shutdown(signal: string): void {
+    console.error(`Shutting down on ${signal}...`);
+    closeDatabase(db);
     process.exit(0);
-  });
+  }
+
+  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
 }

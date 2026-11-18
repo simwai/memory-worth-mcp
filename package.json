@@ -13,6 +13,10 @@
     "start": "node dist/server.js",
     "test": "vitest run",
     "test:watch": "vitest",
+    "lint": "biome check src tests",
+    "lint:fix": "biome check --write src tests",
+    "format": "biome check --write src tests && biome format --write src tests",
+    "prepare": "husky",
     "prepublishOnly": "npm run build",
     "version:patch": "npm version patch",
     "version:minor": "npm version minor",
@@ -47,8 +51,11 @@
     "zod": "^3.22.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.6.8",
     "@types/better-sqlite3": "^7.6.0",
     "@types/node": "^20.0.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.1",
     "tsx": "^4.0.0",
     "typescript": "^5.0.0",
     "vitest": "^1.0.0"
@@ -56,6 +63,16 @@
   "files": [
     "dist"
   ],
+  "lint-staged": {
+    "src/**/*.{ts,tsx,js,jsx,json}": [
+      "biome check --write",
+      "biome format --write"
+    ],
+    "tests/**/*.{ts,tsx,js,jsx,json}": [
+      "biome check --write",
+      "biome format --write"
+    ]
+  },
   "engines": {
     "node": ">=20.0.0"
   }

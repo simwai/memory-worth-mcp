@@ -1,9 +1,9 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerMemoryExportResource } from "./memory-export.js";
-import { registerMemoryListResource } from "./memory-list.js";
 import { registerMemoryGetResource } from "./memory-get.js";
-import { registerMemoryStatsResource } from "./memory-stats.js";
 import { registerMemoryGlobalResource } from "./memory-global.js";
+import { registerMemoryListResource } from "./memory-list.js";
+import { registerMemoryStatsResource } from "./memory-stats.js";
 
 export function registerAllResources(server: McpServer): void {
   registerMemoryExportResource(server);

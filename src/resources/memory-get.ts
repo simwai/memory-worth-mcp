@@ -1,6 +1,7 @@
-import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
+import { type McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import { getDatabase } from "../db/registry.js";
+import { type MemoryRowLike, rowToMemory } from "../utils/mappers.js";
 
 export function registerMemoryGetResource(server: McpServer): void {
   server.registerResource(
@@ -16,17 +17,23 @@ export function registerMemoryGetResource(server: McpServer): void {
     async (uri, variables) => {
       const row = getDatabase()
         .prepare("SELECT * FROM memories WHERE id = ? AND project = ?")
-        .get(variables.id, variables.project);
+        .get(variables.id, variables.project) as MemoryRowLike | undefined;
       if (!row) {
-        throw new McpError(ErrorCode.InvalidParams, `Memory not found: ${variables.id} (project: ${variables.project})`);
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `Memory not found: ${variables.id} (project: ${variables.project})`,
+        );
       }
+      const memory = rowToMemory(row);
       return {
-        contents: [{
-          uri: uri.href,
-          mimeType: "application/json",
-          text: JSON.stringify(row, null, 2),
-        }],
+        contents: [
+          {
+            uri: uri.href,
+            mimeType: "application/json",
+            text: JSON.stringify(memory, null, 2),
+          },
+        ],
       };
-    }
+    },
   );
 }

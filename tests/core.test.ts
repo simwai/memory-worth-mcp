@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { calculateTrustScore, getPopulationQuantiles } from "../src/trust/index.js";
 import Database from "better-sqlite3";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { calculateTrustScore, getPopulationQuantiles } from "../src/trust/index.js";
 
 describe("Trust Scoring", () => {
   let db: Database;
@@ -38,19 +38,24 @@ describe("Trust Scoring", () => {
   it("returns unproven with fewer than 5 calibrations", () => {
     db.prepare("INSERT INTO memories (id) VALUES (?)").run("test-id");
     for (let i = 0; i < 3; i++) {
-      db.prepare("INSERT INTO trust_calibration (memory_id, outcome, recorded_at) VALUES (?, ?, ?)")
-        .run("test-id", "success", Date.now());
+      db.prepare(
+        "INSERT INTO trust_calibration (memory_id, outcome, recorded_at) VALUES (?, ?, ?)",
+      ).run("test-id", "success", Date.now());
     }
     const result = calculateTrustScore("test-id", db);
     expect(result.label).toBe("unproven");
   });
 
   it("calculates high trust with sufficient successes", () => {
-    db.prepare("INSERT INTO memories (id, trust_score, trust_label) VALUES (?, ?, ?)")
-      .run("test-id", 0.5, "unproven");
+    db.prepare("INSERT INTO memories (id, trust_score, trust_label) VALUES (?, ?, ?)").run(
+      "test-id",
+      0.5,
+      "unproven",
+    );
     for (let i = 0; i < 10; i++) {
-      db.prepare("INSERT INTO trust_calibration (memory_id, outcome, recorded_at) VALUES (?, ?, ?)")
-        .run("test-id", "success", Date.now());
+      db.prepare(
+        "INSERT INTO trust_calibration (memory_id, outcome, recorded_at) VALUES (?, ?, ?)",
+      ).run("test-id", "success", Date.now());
     }
     const result = calculateTrustScore("test-id", db);
     expect(result.label).toBe("high");
@@ -58,11 +63,15 @@ describe("Trust Scoring", () => {
   });
 
   it("calculates low trust with sufficient failures", () => {
-    db.prepare("INSERT INTO memories (id, trust_score, trust_label) VALUES (?, ?, ?)")
-      .run("test-id", 0.5, "unproven");
+    db.prepare("INSERT INTO memories (id, trust_score, trust_label) VALUES (?, ?, ?)").run(
+      "test-id",
+      0.5,
+      "unproven",
+    );
     for (let i = 0; i < 10; i++) {
-      db.prepare("INSERT INTO trust_calibration (memory_id, outcome, recorded_at) VALUES (?, ?, ?)")
-        .run("test-id", "failure", Date.now());
+      db.prepare(
+        "INSERT INTO trust_calibration (memory_id, outcome, recorded_at) VALUES (?, ?, ?)",
+      ).run("test-id", "failure", Date.now());
     }
     const result = calculateTrustScore("test-id", db);
     expect(result.label).toBe("low");
@@ -76,16 +85,21 @@ describe("Trust Scoring", () => {
   });
 
   it("getPopulationQuantiles calculates from memories table", () => {
-    db.prepare("INSERT INTO memories (id, trust_score, trust_label, status) VALUES (?, ?, ?, ?)")
-      .run("mem1", 0.9, "high", "active");
-    db.prepare("INSERT INTO memories (id, trust_score, trust_label, status) VALUES (?, ?, ?, ?)")
-      .run("mem2", 0.7, "high", "active");
-    db.prepare("INSERT INTO memories (id, trust_score, trust_label, status) VALUES (?, ?, ?, ?)")
-      .run("mem3", 0.5, "unproven", "active");
-    db.prepare("INSERT INTO memories (id, trust_score, trust_label, status) VALUES (?, ?, ?, ?)")
-      .run("mem4", 0.3, "low", "active");
-    db.prepare("INSERT INTO memories (id, trust_score, trust_label, status) VALUES (?, ?, ?, ?)")
-      .run("mem5", 0.1, "low", "active");
+    db.prepare(
+      "INSERT INTO memories (id, trust_score, trust_label, status) VALUES (?, ?, ?, ?)",
+    ).run("mem1", 0.9, "high", "active");
+    db.prepare(
+      "INSERT INTO memories (id, trust_score, trust_label, status) VALUES (?, ?, ?, ?)",
+    ).run("mem2", 0.7, "high", "active");
+    db.prepare(
+      "INSERT INTO memories (id, trust_score, trust_label, status) VALUES (?, ?, ?, ?)",
+    ).run("mem3", 0.5, "unproven", "active");
+    db.prepare(
+      "INSERT INTO memories (id, trust_score, trust_label, status) VALUES (?, ?, ?, ?)",
+    ).run("mem4", 0.3, "low", "active");
+    db.prepare(
+      "INSERT INTO memories (id, trust_score, trust_label, status) VALUES (?, ?, ?, ?)",
+    ).run("mem5", 0.1, "low", "active");
 
     const quantiles = getPopulationQuantiles(db);
     // 5 items: indices 0,1,2,3,4 -> 75th = index 3 (0.7), 25th = index 1 (0.3)
@@ -94,7 +108,7 @@ describe("Trust Scoring", () => {
   });
 });
 
-import { resolveScope, determineWriteScope, buildOrderByClause } from "../src/routing/index.js";
+import { buildOrderByClause, determineWriteScope, resolveScope } from "../src/routing/index.js";
 
 describe("Routing", () => {
   it("resolveScope returns correct clause for project scope", () => {
@@ -135,14 +149,16 @@ describe("Routing", () => {
     expect(scope).toBe("project");
   });
 
-  it("buildOrderByClause includes project priority for auto scope", () => {
-    const clause = buildOrderByClause("auto", "my-project");
-    expect(clause).toContain("CASE WHEN project = 'my-project' THEN 1 ELSE 0 END DESC");
+  it("buildOrderByClause includes project priority placeholder for auto scope", () => {
+    const { orderBy, params } = buildOrderByClause("auto", "my-project");
+    expect(orderBy).toContain("CASE WHEN project = ? THEN 1 ELSE 0 END DESC");
+    expect(params).toEqual(["my-project"]);
   });
 
   it("buildOrderByClause uses simple order for global scope", () => {
-    const clause = buildOrderByClause("global", "my-project");
-    expect(clause).toContain("trust_score DESC");
-    expect(clause).not.toContain("CASE WHEN");
+    const { orderBy, params } = buildOrderByClause("global", "my-project");
+    expect(orderBy).toContain("trust_score DESC");
+    expect(orderBy).not.toContain("CASE WHEN");
+    expect(params).toEqual([]);
   });
 });
