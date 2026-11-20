@@ -1,29 +1,29 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
-import { getDatabase } from "../db/registry.js";
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { z } from 'zod'
+import { getDatabase } from '../db/registry.js'
 
 interface StatsRow {
-  total: number;
-  high: number;
-  low: number;
-  unproven: number;
-  avg_trust: number | null;
+  total: number
+  high: number
+  low: number
+  unproven: number
+  avg_trust: number | null
 }
 
 export function registerMemoryTuneGuidancePrompt(server: McpServer): void {
   server.registerPrompt(
-    "memory-tune-guidance",
+    'memory-tune-guidance',
     {
-      title: "Memory Tune Guidance",
-      description: "Explain trust thresholds, calibration, and how to tune effectively",
+      title: 'Memory Tune Guidance',
+      description: 'Explain trust thresholds, calibration, and how to tune effectively',
       argsSchema: {
         project: z.string().min(1),
       },
     },
     async ({ project }) => {
-      const db = getDatabase();
-      const stats = db
-        .prepare(`
+      const database = getDatabase()
+      const stats = (await database.get(
+        `
       SELECT 
         COUNT(*) as total,
         SUM(CASE WHEN trust_label='high' THEN 1 ELSE 0 END) as high,
@@ -31,24 +31,26 @@ export function registerMemoryTuneGuidancePrompt(server: McpServer): void {
         SUM(CASE WHEN trust_label='unproven' THEN 1 ELSE 0 END) as unproven,
         AVG(trust_score) as avg_trust
       FROM memories WHERE project = ? AND status = 'active'
-    `)
-        .get(project) as StatsRow;
+    `,
+        project,
+      )) as StatsRow
 
-      const quantiles = db
-        .prepare(`
+      const quantiles = (await database.all(
+        `
       SELECT trust_score FROM memories WHERE project = ? AND status = 'active'
       ORDER BY trust_score
-    `)
-        .all(project) as { trust_score: number }[];
+    `,
+        project,
+      )) as { trust_score: number }[]
 
-      const sorted = quantiles.map((q) => q.trust_score).sort((a, b) => a - b);
-      const highIdx = Math.floor(sorted.length * 0.75);
-      const lowIdx = Math.floor(sorted.length * 0.25);
-      const popHigh = sorted[highIdx] ?? 0.7;
-      const popLow = sorted[lowIdx] ?? 0.3;
+      const sorted = quantiles.map((q) => q.trust_score).sort((a, b) => a - b)
+      const highIdx = Math.floor(sorted.length * 0.75)
+      const lowIdx = Math.floor(sorted.length * 0.25)
+      const popHigh = sorted[highIdx] ?? 0.7
+      const popLow = sorted[lowIdx] ?? 0.3
 
       const pct = (n: number) =>
-        stats.total === 0 ? "0.0%" : `${((n / stats.total) * 100).toFixed(1)}%`;
+        stats.total === 0 ? '0.0%' : `${((n / stats.total) * 100).toFixed(1)}%`
 
       const prompt = `Trust Tuning Guidance for project "${project}"
 
@@ -57,12 +59,12 @@ export function registerMemoryTuneGuidancePrompt(server: McpServer): void {
 - High trust: ${stats.high} (${pct(stats.high)})
 - Unproven: ${stats.unproven} (${pct(stats.unproven)})
 - Low trust: ${stats.low} (${pct(stats.low)})
-- Average trust: ${stats.avg_trust?.toFixed(3) ?? "N/A"}
+- Average trust: ${stats.avg_trust?.toFixed(3) ?? 'N/A'}
 
 ## Current Thresholds (Population Quantiles)
 ${
   stats.total === 0
-    ? "- No active memories — thresholds cannot be computed from an empty distribution"
+    ? '- No active memories — thresholds cannot be computed from an empty distribution'
     : `- High threshold: ${popHigh.toFixed(3)} (75th percentile)
 - Low threshold: ${popLow.toFixed(3)} (25th percentile)`
 }
@@ -85,11 +87,11 @@ ${
 - When project scope changes significantly
 - Before major synthesis/review sessions
 
-Run \`memory_tune\` with custom thresholds or without args to use population quantiles.`;
+Run \`memory_tune\` with custom thresholds or without args to use population quantiles.`
 
       return {
-        messages: [{ role: "user" as const, content: { type: "text" as const, text: prompt } }],
-      };
+        messages: [{ role: 'user' as const, content: { type: 'text' as const, text: prompt } }],
+      }
     },
-  );
+  )
 }

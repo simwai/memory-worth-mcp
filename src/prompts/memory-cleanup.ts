@@ -1,14 +1,14 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
-import { getDatabase } from "../db/registry.js";
-import { type MemoryRowLike, rowToMemory } from "../utils/mappers.js";
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { z } from 'zod'
+import { getDatabase } from '../db/registry.js'
+import { type MemoryRowLike, rowToMemory } from '../utils/mappers.js'
 
 export function registerMemoryCleanupPrompt(server: McpServer): void {
   server.registerPrompt(
-    "memory-cleanup",
+    'memory-cleanup',
     {
-      title: "Memory Cleanup Prompt",
-      description: "Generate a prompt for archiving stale or superseded memories",
+      title: 'Memory Cleanup Prompt',
+      description: 'Generate a prompt for archiving stale or superseded memories',
       argsSchema: {
         project: z.string().min(1),
         olderThanDays: z.number().int().positive().default(90),
@@ -16,25 +16,28 @@ export function registerMemoryCleanupPrompt(server: McpServer): void {
       },
     },
     async ({ project, olderThanDays, includeSuperseded }) => {
-      const db = getDatabase();
-      const cutoff = Date.now() - olderThanDays * 24 * 60 * 60 * 1000;
+      const database = getDatabase()
+      const cutoff = Date.now() - olderThanDays * 24 * 60 * 60 * 1000
 
-      const staleRows = db
-        .prepare(`
+      const staleRows = (await database.all(
+        `
       SELECT * FROM memories 
       WHERE project = ? AND status = 'active' AND updated_at < ?
-    `)
-        .all(project, cutoff) as MemoryRowLike[];
-      const stale = staleRows.map(rowToMemory);
+    `,
+        project,
+        cutoff,
+      )) as MemoryRowLike[]
+      const stale = staleRows.map(rowToMemory)
 
-      let superseded: typeof stale = [];
+      let superseded: typeof stale = []
       if (includeSuperseded) {
-        const supersededRows = db
-          .prepare(`
+        const supersededRows = (await database.all(
+          `
         SELECT * FROM memories WHERE project = ? AND status = 'superseded'
-      `)
-          .all(project) as MemoryRowLike[];
-        superseded = supersededRows.map(rowToMemory);
+      `,
+          project,
+        )) as MemoryRowLike[]
+        superseded = supersededRows.map(rowToMemory)
       }
 
       const prompt = `Cleanup candidates for project "${project}":
@@ -46,7 +49,7 @@ ${stale
     (m) =>
       `- **${m.id}** (trust: ${m.trustLabel}, updated: ${new Date(m.updatedAt).toISOString().slice(0, 10)}) ${m.content.slice(0, 150)}... [applies: ${m.appliesWhen}]`,
   )
-  .join("\n")}
+  .join('\n')}
 
 ${
   includeSuperseded
@@ -55,10 +58,10 @@ ${superseded
   .slice(0, 10)
   .map(
     (m) =>
-      `- **${m.id}** → superseded by ${m.supersededBy ?? "unknown"}: ${m.content.slice(0, 150)}...`,
+      `- **${m.id}** → superseded by ${m.supersededBy ?? 'unknown'}: ${m.content.slice(0, 150)}...`,
   )
-  .join("\n")}`
-    : ""
+  .join('\n')}`
+    : ''
 }
 
 ---
@@ -68,11 +71,11 @@ ${superseded
 3. Verify superseded memories have proper evidence_refs
 4. Consider merging related stale memories before archiving
 
-Run \`memory_update\` with status="archived" for items to archive.`;
+Run \`memory_update\` with status="archived" for items to archive.`
 
       return {
-        messages: [{ role: "user" as const, content: { type: "text" as const, text: prompt } }],
-      };
+        messages: [{ role: 'user' as const, content: { type: 'text' as const, text: prompt } }],
+      }
     },
-  );
+  )
 }

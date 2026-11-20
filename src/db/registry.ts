@@ -1,18 +1,18 @@
-import type { Database as DatabaseType } from "better-sqlite3";
+import type { Database } from './database.js'
 
-let dbInstance: DatabaseType | null = null;
+let dbInstance: Database | null = null
 
-export function setDatabase(db: DatabaseType): void {
-  dbInstance = db;
+export function setDatabase(database: Database): void {
+  dbInstance = database
 }
 
-export function getDatabase(): DatabaseType {
+export function getDatabase(): Database {
   if (!dbInstance) {
-    throw new Error("Database not initialized. Call setDatabase() first.");
+    throw new Error('Database not initialized. Call setDatabase() first.')
   }
-  return dbInstance;
+  return dbInstance
 }
 
 export function resetDatabase(): void {
-  dbInstance = null;
+  dbInstance = null
 }

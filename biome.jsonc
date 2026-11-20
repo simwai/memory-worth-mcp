@@ -21,8 +21,8 @@
   },
   "javascript": {
     "formatter": {
-      "quoteStyle": "double",
-      "semicolons": "always",
+      "quoteStyle": "single",
+      "semicolons": "asNeeded",
       "arrowParentheses": "always",
       "bracketSpacing": true
     }

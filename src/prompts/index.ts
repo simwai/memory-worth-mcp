@@ -1,12 +1,12 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { registerMemoryCleanupPrompt } from "./memory-cleanup.js";
-import { registerMemoryReviewPrompt } from "./memory-review.js";
-import { registerMemorySynthesisPrompt } from "./memory-synthesis.js";
-import { registerMemoryTuneGuidancePrompt } from "./memory-tune-guidance.js";
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { registerMemoryCleanupPrompt } from './memory-cleanup.js'
+import { registerMemoryReviewPrompt } from './memory-review.js'
+import { registerMemorySynthesisPrompt } from './memory-synthesis.js'
+import { registerMemoryTuneGuidancePrompt } from './memory-tune-guidance.js'
 
 export function registerAllPrompts(server: McpServer): void {
-  registerMemoryReviewPrompt(server);
-  registerMemorySynthesisPrompt(server);
-  registerMemoryCleanupPrompt(server);
-  registerMemoryTuneGuidancePrompt(server);
+  registerMemoryReviewPrompt(server)
+  registerMemorySynthesisPrompt(server)
+  registerMemoryCleanupPrompt(server)
+  registerMemoryTuneGuidancePrompt(server)
 }
